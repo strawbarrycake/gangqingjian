@@ -1,0 +1,194 @@
+================================================================
+  钢琴键游戏 —— macOS 版打包说明
+================================================================
+
+【为什么不能在这台 Windows 上直接给你 .app】
+
+macOS 的程序是 Mach-O 格式，而且要链接 Apple 自己的框架
+（Cocoa / CoreGraphics / AVFoundation…）。这些框架和 macOS SDK
+只有在 Mac 上才有，Windows 上没法交叉编译，也没有任何合法途径能
+拿到。所以这里给你的是一份完整的 macOS 原生源码 + 一键打包脚本，
+在一台 Mac 上执行一条命令就能打出可双击运行的 .app。
+
+整个过程不需要装 Xcode，也不需要联网。
+
+
+【怎么打】
+
+1. 把 mac 这个文件夹整个拷到 Mac 上（U 盘、微信、AirDrop 都行）。
+   注意：audio 目录里 4 个 mp3 要一起拷过去，它们是内嵌素材。
+
+2. 打开「终端」（Command+空格 搜 Terminal），先装命令行工具，
+   没装过的话执行一次（弹窗点安装，约 1 分钟）：
+        xcode-select --install
+
+3. cd 到 mac 目录，执行：
+        chmod +x build_mac.sh
+        ./build_mac.sh
+
+4. 看到「完成！」就说明好了，产物有两个：
+        钢琴键游戏.app          双击就能玩
+        钢琴键游戏-macOS.zip    要发给别人的话发这一个
+
+
+【手上没有 Mac 怎么办 —— 拿到一个能直接发给朋友的下载链接】
+
+先说清楚为什么不能在这台 Windows 上直接给你 .app：
+  · macOS 的程序是 Mach-O 格式，而且要链接 Apple 自己的 SDK
+    （Cocoa / AVFoundation…），Windows 上没有这套东西，
+    也没有任何合法途径能做交叉编译。
+  · 而且 .app 本身是一个"文件夹"（里面是 Contents/MacOS/… 和
+    Contents/Resources/…），不是单个文件，所以发给别人必然要打包。
+
+所以最省事的做法是让云端编完自动发布成一个公开下载链接，
+你自己全程不用碰文件、也不用解压：
+
+  1. 在 GitHub 新建仓库（建议 Public，这样朋友下载不用登录）
+     → clone 到本地 → 把 mac 文件夹整个放进去
+  2. 把 github-actions.yml 放到 仓库/.github/workflows/build-mac.yml
+  3. 打标签推送：
+        git add . && git commit -m "build"
+        git tag v1.0
+        git push origin v1.0
+  4. Actions 跑完（约 1~2 分钟）→ 仓库右侧 Releases → 点 v1.0
+     里面有两个文件，随便哪个都行：
+        钢琴键游戏.dmg         Mac 标准格式，双击后把 .app 拖进 Applications
+        钢琴键游戏-macOS.zip   解压后双击 .app 就能玩
+  5. 复制那个下载链接发给朋友。他用 Mac 打开链接，Safari 下载后
+     会自动解压，双击 .app 即可。
+
+也可以不打标签：仓库页面 → Actions → build-mac → Run workflow
+手动点一下，效果一样，只是版本号会显示成分支名（不影响下载）。
+
+注意：别用 Actions 页面最下面的 Artifacts 发给朋友 ——
+那个必须登录 GitHub 才能下载，别人点开是拿不到的。
+
+如果发布那一步报「Resource not accessible by integration」之类的权限错误，
+去仓库页面：Settings → Actions → General → 拉到最下面
+Workflow permissions → 选「Read and write permissions」→ Save，
+然后重新跑一次即可。
+
+
+【双击打不开怎么办】
+
+没签名的 app，macOS 第一次会拦一下，提示"无法验证开发者"。
+不用改系统设置，右键（或 Control+点）这个 app → 选「打开」→
+再点「打开」，之后就能正常双击了。
+
+
+【发给朋友 —— 直接把这段话转给他】
+
+用微信 / QQ 把 钢琴键游戏-macOS.zip 发过去，再附一句：
+
+    收到 zip 双击一下会自动解压，出来一个「钢琴键游戏」图标。
+    第一次打开时右键（或双指点按）它 → 选「打开」→ 再点「打开」，
+    之后就能正常双击玩了。4 首曲子都在里面，不用联网。
+
+这一步是 macOS 对「没签名的 app」的固定拦截，绕不过去
+（除非每年花 688 元买 Apple 开发者证书做签名公证）。
+只有第一次需要右键，之后就是普通双击。
+
+如果朋友说双击 zip 没反应，让他先确认下载完了
+（34 MB，微信传大约几秒到几十秒）。
+
+注意：别让朋友去 GitHub 下载 —— 仓库里的 Artifacts 要登录才能下，
+只有你自己下载下来的这个 zip 才是能直接发出去的成品。
+
+
+【验证一下有没有问题】
+
+在终端里跑这两个命令可以做自检：
+
+  # 渲染自检：把三种窗口尺寸的画面导成 PNG，看看画得对不对
+  ./钢琴键游戏.app/Contents/MacOS/PianoTiles --shot
+  open shots
+
+  # 直接进游戏（不点菜单）
+  ./钢琴键游戏.app/Contents/MacOS/PianoTiles --play
+
+游戏里按 Cmd+D 可以在左下角显示实时帧率。
+
+
+【它依赖什么】
+
+只依赖系统自带的东西，不需要装任何运行库：
+  Cocoa / CoreGraphics / CoreText / CoreVideo
+  QuartzCore / AVFoundation / ImageIO / CoreFoundation
+
+4 首曲子的 mp3 已经放在 .app/Contents/Resources 里（aud0~aud3），
+程序启动时直接从包里读，不会生成任何临时文件或配置文件。
+所以整个 .app 拷到哪都能跑，删掉外面的 audio 目录也不影响。
+
+
+【想换歌】
+
+把新的 mp3 改名成 aud0.mp3 / aud1.mp3 / aud2.mp3 / aud3.mp3，
+覆盖 .app/Contents/Resources 里的同名文件即可，不用重新编译：
+   右键 .app → 显示包内容 → Contents → Resources
+
+
+【不想用 GitHub —— 在自己电脑上装虚拟机编译】
+
+也可以在这台 Windows 上用虚拟机跑一个 macOS 来编译：
+
+  1. 装 VMware Workstation Pro（注意别下错产品）
+
+     打开 support.broadcom.com → 注册一个免费账号 →
+       My Dashboard → My Downloads → "Free Software Downloads available HERE"
+       → 搜 Workstation → 选「VMware Workstation Pro 26H1 for Windows」
+       → 勾上同意条款 → 下载（约 274 MB）
+
+     2024 年 11 月起它完全免费，个人和商业用途都不需要密钥。
+
+     门户里有两个很容易踩的坑：
+       · 注册时如果让你选 division（部门），选 VMware Cloud Foundation。
+         这只是 Broadcom 门户的分类名，不等于让你装那个产品。
+       · 页面里会看到「VMware Cloud Foundation Edge」这类企业级产品，
+         那是给服务器和边缘计算用的，跟你装虚拟机无关，别下。
+  2. 装 unlocker（第三方补丁，因为 VMware 默认不允许装 macOS）
+     搜 "auto-unlocker"，按说明用管理员身份跑一次
+  3. 准备一个 macOS 的安装镜像（Intel 版 ISO / vmdk，约 10 GB）
+  4. 新建虚拟机 → 装 macOS → 进系统后在终端执行一次
+         xcode-select --install
+     （约 1 GB，需要联网）
+  5. 把 mac 这个文件夹拖进虚拟机（装了 VMware Tools 可以直接拖）
+  6. 虚拟机的终端里：
+         cd 到 mac 目录
+         chmod +x build_mac.sh
+         ./build_mac.sh
+  7. 看到「架构：x86_64 arm64」就成了，把生成的
+     钢琴键游戏-macOS.zip 拖回 Windows，微信发给朋友
+
+几个要心里有数的地方：
+
+  · 装之前先进 BIOS 确认开了虚拟化（Intel 叫 VT-x，AMD 叫 AMD-V），
+    没开的话 VMware 会直接报错起不来。
+  · 装虚拟机比用 GitHub 折腾得多。顺利的话一两个小时，
+    卡在显卡或网卡驱动上折腾几天也常见，要有心理准备。
+  · PC 是 x86，虚拟机里的 macOS 一定是 Intel 版，
+    但脚本默认编的是「通用二进制」，同时含 x86_64 和 arm64，
+    所以 M 系列的朋友照样能原生跑，不需要 Rosetta 转译。
+  · Apple 的许可协议里 macOS 只允许装在 Apple 硬件上，
+    虚拟机装属于灰色地带。自己学习、编译没问题，别拿去商用分发。
+  · 虚拟机里没有显卡加速，跑起来画面会卡，
+    但只用来编译不影响 —— 编译是纯命令行的事。
+
+
+【目录说明】
+
+  main.mm          macOS 版全部源码（Objective-C++，约 1200 行）
+  Info.plist       app 包的配置
+  build_mac.sh     一键打包脚本
+  audio/aud0~3.mp3 内嵌音频素材（只在打包时需要）
+
+
+【和 Windows 版的对应关系】
+
+  渲染    GDI+            →  CoreGraphics（坐标系翻成 y 向下，布局代码基本没改）
+  贴图    DIB + BitBlt    →  静态层烘焙成 CGImage，每帧一次 DrawImage
+  节奏    DwmFlush        →  CVDisplayLink（贴着显示器刷新率跑）
+  音频    MF + waveOut    →  AVFoundation 的 AVAudioPlayer
+  文字    GDI+ DrawString →  CoreText（PingFang SC / Helvetica Neue）
+
+手感参数（判定窗口 0.175s、飞行时间 2.85s、透视曲线 1.9 次幂）
+和谱面种子都和 Windows 版一致，同一首歌谱面完全一样。

@@ -1,0 +1,75 @@
+# ============================================================
+#  没有 Mac 也能打出 .app，并自动生成一个「公开下载链接」
+#
+#  用法（推荐方式，两行命令）：
+#    1. 在 GitHub 上新建仓库（建议设为 Public，朋友下载才不用登录）
+#    2. 把仓库 clone 到本地，把 mac 这个文件夹整个放进去（路径 mac/…）
+#    3. 把这个文件放到 仓库根目录/.github/workflows/build-mac.yml
+#    4. 打标签并推送：
+#           git add . && git commit -m "build"
+#           git tag v1.0
+#           git push origin v1.0
+#    5. 打开仓库页面 → Actions → 等约 1~2 分钟跑完
+#       再去 Releases 页面，就会出现带下载文件的 v1.0 版本
+#
+#  也可以不打标签：仓库页面 → Actions → build-mac → Run workflow
+#    手动触发，同样会发布（版本号会用分支名，不影响下载）
+#
+#  拿到链接后：
+#    仓库右侧 Releases → v1.0 → 复制下载链接发给朋友即可。
+#    朋友用 Mac 下载后，Safari 会自动解压，双击 .app 就能玩。
+#
+#  说明：macos-14 是 Apple Silicon，编出来的是 arm64 版（M1/M2/M3/M4 可直接跑）。
+#        如果要给 Intel 的 Mac 用，把下面的 runs-on 改成 macos-13。
+# ============================================================
+name: build-mac
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    permissions:
+      contents: write          # 允许创建 Release，缺了这行发布会失败
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 一键打包 .app
+        run: |
+          chmod +x mac/build_mac.sh
+          ./mac/build_mac.sh
+
+      - name: 制作 dmg 磁盘映像
+        run: |
+          cd mac
+          hdiutil create -volname "钢琴键游戏" \
+            -srcfolder "钢琴键游戏.app" \
+            -ov -format UDZO "钢琴键游戏.dmg"
+          ls -lh 钢琴键游戏.dmg
+
+      - name: 发布到 Releases（生成公开下载链接）
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: 钢琴键游戏 macOS 版
+          body: |
+            下面两个随便下哪个都行：
+
+            - 钢琴键游戏.dmg —— Mac 标准分发格式，双击后把 .app 拖进 Applications
+            - 钢琴键游戏-macOS.zip —— 解压后直接双击 .app 即可玩
+
+            arm64 版本，适用于 M1 / M2 / M3 / M4 机型。
+            4 首曲子已经打进包里，不需要联网，也不依赖任何运行库。
+
+            第一次打开时 macOS 会提示"无法验证开发者"，
+            右键（或 Control+点）这个 app → 选「打开」→ 再点「打开」，之后就能正常双击了。
+          files: |
+            mac/钢琴键游戏-macOS.zip
+            mac/钢琴键游戏.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
