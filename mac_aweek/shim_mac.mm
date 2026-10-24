@@ -408,6 +408,7 @@ static void HswBackResize(int w, int h)
     CGContextScaleCTM(g_backCtx, 1, -1);
 }
 
+
 // ---- 离屏截图（CI 自检用：--shot out.png --shot-at 30,120,300）----
 static const char*    g_shotPath = nullptr;
 static std::vector<int> g_shotAt;
@@ -687,7 +688,12 @@ HDC BeginPaint(HWND hwnd, PAINTSTRUCT* ps)
     g_dcSet.insert((void*)dc);
     if (ps) ps->hdc = dc;
     ++g_dbgN;
-    if (g_dbgN < 400 || g_dbgN % 120 == 0) DBG("BeginPaint #%d %dx%d", g_dbgN, g_backW, g_backH);
+    static int paintN = 0;
+    ++paintN;
+    if (paintN % 300 == 0) {
+        fprintf(stderr, "[shim] paint #%d t=%.2fs\n", paintN, HswNowSec() - g_timeBase);
+        fflush(stderr);
+    }
     return dc;
 }
 
@@ -2827,6 +2833,7 @@ int main(int argc, char** argv)
         }
         else if (!strcmp(argv[i], "--shot-quit")) g_shotQuit = true;
     }
+    g_timeBase = HswNowSec();
     if (g_shotPath) fprintf(stderr, "[shot] path=%s frames=%zu\n", g_shotPath, g_shotAt.size());
 
     @autoreleasepool {
