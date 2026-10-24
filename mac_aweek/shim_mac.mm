@@ -412,6 +412,8 @@ static void HswBackResize(int w, int h)
 // ---- 离屏截图（CI 自检用：--shot out.png --shot-at 30,120,300）----
 static const char*    g_shotPath = nullptr;
 static std::vector<int> g_shotAt;
+struct HswClick { int frame, x, y; };
+static std::vector<HswClick> g_clicks;
 static int            g_paintCount = 0;
 static bool           g_shotQuit = false;
 
@@ -445,6 +447,17 @@ void HswPresentBackbuffer(void)
         char ab[1024];
         snprintf(ab, sizeof(ab), "%s_auto%03d.png", g_shotPath, g_paintCount);
         HswSavePng(ab);
+    }
+    for (size_t i = 0; i < g_clicks.size(); ++i) {
+        if (g_clicks[i].frame == g_paintCount) {
+            long long lp = (long long)(unsigned short)g_clicks[i].x |
+                           (((long long)(unsigned short)g_clicks[i].y) << 16);
+            HswPushMsg(WM_MOUSEMOVE, 0, lp);
+            HswPushMsg(WM_LBUTTONDOWN, 1, lp);
+            HswPushMsg(WM_LBUTTONUP, 0, lp);
+            fprintf(stderr, "[shot] click (%d,%d) @%d\n", g_clicks[i].x, g_clicks[i].y, g_paintCount);
+            fflush(stderr);
+        }
     }
     if (g_shotPath && !g_shotAt.empty()) {
         for (size_t i = 0; i < g_shotAt.size(); ++i) {
@@ -2854,6 +2867,10 @@ int main(int argc, char** argv)
                 if (!one.empty()) g_shotAt.push_back(atoi(one.c_str()));
                 pos = c + 1;
             }
+        }
+        else if (!strcmp(argv[i], "--click") && i + 1 < argc) {
+            int fr = 0, x = 0, y = 0;
+            if (sscanf(argv[++i], "%d,%d,%d", &fr, &x, &y) == 3) g_clicks.push_back({ fr, x, y });
         }
         else if (!strcmp(argv[i], "--shot-quit")) g_shotQuit = true;
     }
