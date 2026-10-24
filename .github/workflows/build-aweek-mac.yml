@@ -8,6 +8,7 @@ on:
   push:
     paths:
       - 'mac_aweek/**'
+      - '.github/workflows/build-aweek-mac.yml'
 
 jobs:
   build:
