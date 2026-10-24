@@ -440,6 +440,12 @@ void HswPresentBackbuffer(void)
     if (g_view) [g_view setNeedsDisplay:YES];
 
     ++g_paintCount;
+    // 诊断：前 120 帧每 10 帧自动存一张，用来定位「第几帧开始变黑」
+    if (g_shotPath && g_paintCount <= 120 && (g_paintCount % 10) == 0) {
+        char ab[1024];
+        snprintf(ab, sizeof(ab), "%s_auto%03d.png", g_shotPath, g_paintCount);
+        HswSavePng(ab);
+    }
     if (g_shotPath && !g_shotAt.empty()) {
         for (size_t i = 0; i < g_shotAt.size(); ++i) {
             if (g_shotAt[i] == g_paintCount) {
