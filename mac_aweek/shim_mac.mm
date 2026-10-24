@@ -2610,8 +2610,12 @@ static void HswDrawRun(CGContextRef c, ShimTextRun& r, CGFloat x, CGFloat baseli
 {
     if (!c || !r.line) return;
     CGContextSaveGState(c);
+    // 外层是 y 向下（为配合 GDI+ 坐标加的翻转），文字必须再翻回来才不会镜像。
+    // 做法：把原点搬到基线位置，再乘一次 (1,-1)，在局部 y 向上的空间里用单位文字矩阵画。
+    CGContextTranslateCTM(c, x, baselineY);
+    CGContextScaleCTM(c, 1, -1);
     CGContextSetTextMatrix(c, CGAffineTransformIdentity);
-    CGContextSetTextPosition(c, x, baselineY);
+    CGContextSetTextPosition(c, 0, 0);
     if (strokeOnly) {
         CGContextSetTextDrawingMode(c, kCGTextStroke);
         CGContextSetLineWidth(c, strokeW <= 0 ? 1 : strokeW);
