@@ -31,12 +31,14 @@ jobs:
           cd mac_aweek
           mkdir -p shots
           ( "./高中的一周.app/Contents/MacOS/AWeek" \
-                --shot shots/pv --shot-at 150,320,700,900,1200,1600 \
+                --shot shots/pv --shot-at 150,320,700,780,900,1100,1400,1800 \
                 --click 200,1030,196 \
                 --click 400,410,310 \
-                --click 480,1140,590 --click 520,1140,590 \
-                --click 560,1140,590 --click 600,1140,590 \
-                --click 640,1140,590 --click 680,1140,590 \
+                --click 710,640,530 \
+                --click 800,1150,600 --click 860,1150,600 \
+                --click 920,1150,600 --click 980,1150,600 \
+                --click 1040,1150,600 --click 1100,1150,600 \
+                --click 1160,1150,600 --click 1220,1150,600 \
                 --shot-quit \
                 > shots/app.log 2>&1 ; echo "exit=$?" >> shots/app.log ) &
           PID=$!
