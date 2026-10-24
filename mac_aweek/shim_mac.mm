@@ -83,8 +83,9 @@ static int g_clientW = 1280, g_clientH = 720;
 - (BOOL)acceptsFirstResponder { return YES; }
 
 // 临时诊断日志（CI 上定位卡点用）
-static int g_dbgN = 0;
-#define DBG(...) do { if (g_dbgN < 3000) { fprintf(stderr, "[shim] " __VA_ARGS__); fputc('\n', stderr); fflush(stderr); } } while(0)
+static bool g_verbose = false;
+static int  g_dbgN = 0;
+#define DBG(...) do { if (g_verbose && g_dbgN < 3000) { fprintf(stderr, "[shim] " __VA_ARGS__); fputc('\n', stderr); fflush(stderr); ++g_dbgN; } } while(0)
 
 // Cocoa 原点在左下，翻成 GDI 的 y 向下
 static int HswFlipY(CGFloat yInView)
@@ -442,12 +443,6 @@ void HswPresentBackbuffer(void)
     if (g_view) [g_view setNeedsDisplay:YES];
 
     ++g_paintCount;
-    // 诊断：前 120 帧每 10 帧自动存一张，用来定位「第几帧开始变黑」
-    if (g_shotPath && g_paintCount <= 120 && (g_paintCount % 10) == 0) {
-        char ab[1024];
-        snprintf(ab, sizeof(ab), "%s_auto%03d.png", g_shotPath, g_paintCount);
-        HswSavePng(ab);
-    }
     for (size_t i = 0; i < g_clicks.size(); ++i) {
         if (g_clicks[i].frame == g_paintCount) {
             long long lp = (long long)(unsigned short)g_clicks[i].x |
@@ -509,13 +504,20 @@ HWND CreateWindowExW(DWORD exStyle, const wchar_t* cls, const wchar_t* title,
     [g_window setTitle:t];
     [g_window setAcceptsMouseMovedEvents:YES];
     [g_window setDelegate:(id<NSWindowDelegate>)g_delegate];
-    g_view = [[HswView alloc] initWithFrame:frame];
+    // 游戏传进来的 w/h 是「含标题栏的外框」（AdjustWindowRect 算出来的），
+    // 所以按外框反算内容区，否则会多出 28px 黑边。
+    NSRect outer = NSMakeRect(0, 0, (CGFloat)w, (CGFloat)h);
+    NSRect inner = [g_window contentRectForFrameRect:outer];
+    [g_window setContentSize:inner.size];
+    g_clientW = (int)round(inner.size.width);
+    g_clientH = (int)round(inner.size.height);
+
+    g_view = [[HswView alloc] initWithFrame:NSMakeRect(0, 0, inner.size.width, inner.size.height)];
     [g_window setContentView:g_view];
     [g_window makeFirstResponder:g_view];
     [g_window center];
 
-    g_clientW = w; g_clientH = h;
-    HswBackResize(w, h);
+    HswBackResize(g_clientW, g_clientH);
 
     if (x != (int)CW_USEDEFAULT || y != (int)CW_USEDEFAULT) {
         NSScreen* sc = [NSScreen mainScreen];
@@ -2879,6 +2881,7 @@ int main(int argc, char** argv)
         else if (!strcmp(argv[i], "--shot-quit")) g_shotQuit = true;
     }
     g_timeBase = HswNowSec();
+    g_verbose = (g_shotPath != nullptr) || (getenv("HSW_DEBUG") != nullptr);
     if (g_shotPath) fprintf(stderr, "[shot] path=%s frames=%zu\n", g_shotPath, g_shotAt.size());
 
     @autoreleasepool {
