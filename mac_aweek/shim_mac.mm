@@ -1460,6 +1460,7 @@ static CGContextRef ImgCtx(ShimImg* im)
             CGContextDrawImage(im->ctx, CGRectMake(0, 0, im->w, im->h), im->cg);
             CGContextRestoreGState(im->ctx);
         }
+        im->dirty = false;      // 缓冲和 cg 此时是一致的
     }
     return im->ctx;
 }
@@ -1474,10 +1475,14 @@ static void ImgInvalidate(ShimImg* im)
 static CGImageRef ImgCG(ShimImg* im)
 {
     if (!im) return nullptr;
-    if (!im->cg || im->dirty) {
-        if (im->cg) { CGImageRelease(im->cg); im->cg = nullptr; }
-        if (im->ctx) im->cg = CGBitmapContextCreateImage(im->ctx);
-        im->dirty = false;
+    // 只有「自己带像素缓冲」的位图才需要按 dirty 重建；
+    // 从文件加载的图只有 cg，没有 ctx，绝不能因为 dirty 把它扔掉。
+    if (im->ctx) {
+        if (!im->cg || im->dirty) {
+            if (im->cg) { CGImageRelease(im->cg); im->cg = nullptr; }
+            im->cg = CGBitmapContextCreateImage(im->ctx);
+            im->dirty = false;
+        }
     }
     return im->cg;
 }
@@ -1841,6 +1846,7 @@ static ShimImg* HswLoadImageFile(const wchar_t* file)
     im->cg = cg;
     im->w = (int)CGImageGetWidth(cg);
     im->h = (int)CGImageGetHeight(cg);
+    im->dirty = false;          // 刚加载，cg 就是权威数据
     DBG("  -> %dx%d", im->w, im->h);
     return im;
 }
