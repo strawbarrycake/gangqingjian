@@ -220,6 +220,14 @@ static std::wstring U2W(const std::string& s)
 
 static std::string W2U(const wchar_t* ws) { return ws ? W2U(std::wstring(ws)) : std::string(); }
 
+// 游戏里到处用 L"%ls\\%ls" 拼路径，反斜杠在 macOS 上不是分隔符 —— 统一换成 '/'
+static std::string HswPath(const wchar_t* ws)
+{
+    std::string p = W2U(ws);
+    for (size_t i = 0; i < p.size(); ++i) if (p[i] == '\\') p[i] = '/';
+    return p;
+}
+
 extern "C" {
 
 // ---------------- 时间 ----------------
@@ -978,7 +986,7 @@ FILE* _wfopen(const wchar_t* path, const wchar_t* mode)
 {
     DBG("_wfopen %s", mode ? W2U(mode).c_str() : "?");
     if (!path) return nullptr;
-    std::string p = W2U(path);
+    std::string p = HswPath(path);
     std::string m = mode ? W2U(mode) : "rb";
     if (m.find('b') == std::string::npos) m += "b";
     DBG("  open [%s] mode=%s", p.c_str(), m.c_str());
@@ -1010,7 +1018,7 @@ BOOL CreateDirectoryW(const wchar_t* path, void* sa)
     (void)sa;
     DBG("CreateDirectoryW");
     if (!path) return FALSE;
-    std::string p = W2U(path);
+    std::string p = HswPath(path);
     mkdir(p.c_str(), 0755);
     struct stat st;
     return (stat(p.c_str(), &st) == 0) ? TRUE : FALSE;
@@ -1027,7 +1035,7 @@ DWORD GetFileAttributesW(const wchar_t* path)
     DBG("GetFileAttributesW");
     if (!path) return 0xFFFFFFFFu;
     struct stat st;
-    if (stat(W2U(path).c_str(), &st) != 0) return 0xFFFFFFFFu;
+    if (stat(HswPath(path).c_str(), &st) != 0) return 0xFFFFFFFFu;
     return S_ISDIR(st.st_mode) ? FILE_ATTRIBUTE_DIRECTORY : 0x00000020u;
 }
 
@@ -1038,7 +1046,7 @@ BOOL CopyFileW(const wchar_t* src, const wchar_t* dst, BOOL failIfExists)
 {
     DBG("CopyFileW");
     if (!src || !dst) return FALSE;
-    std::string s = W2U(src), d = W2U(dst);
+    std::string s = HswPath(src), d = HswPath(dst);
     if (failIfExists) { struct stat st; if (stat(d.c_str(), &st) == 0) return FALSE; }
     FILE* fi = fopen(s.c_str(), "rb");
     if (!fi) return FALSE;
@@ -1054,7 +1062,7 @@ BOOL CopyFileW(const wchar_t* src, const wchar_t* dst, BOOL failIfExists)
 BOOL DeleteFileW(const wchar_t* path)
 {
     if (!path) return FALSE;
-    return unlink(W2U(path).c_str()) == 0 ? TRUE : FALSE;
+    return unlink(HswPath(path).c_str()) == 0 ? TRUE : FALSE;
 }
 
 BOOL PathFileExistsW(const wchar_t* path)
@@ -1062,7 +1070,7 @@ BOOL PathFileExistsW(const wchar_t* path)
     DBG("PathFileExistsW");
     if (!path) return FALSE;
     struct stat st;
-    return stat(W2U(path).c_str(), &st) == 0 ? TRUE : FALSE;
+    return stat(HswPath(path).c_str(), &st) == 0 ? TRUE : FALSE;
 }
 
 // ---- 文件遍历 ----
@@ -1077,7 +1085,7 @@ HANDLE FindFirstFileW(const wchar_t* pattern, WIN32_FIND_DATAW* fd)
 {
     DBG("FindFirstFileW");
     if (!pattern || !fd) return INVALID_HANDLE_VALUE;
-    std::string p = W2U(pattern);
+    std::string p = HswPath(pattern);
     size_t slash = p.find_last_of('/');
     std::string dir = (slash == std::string::npos) ? "." : p.substr(0, slash);
     std::string name = (slash == std::string::npos) ? p : p.substr(slash + 1);
@@ -1290,12 +1298,37 @@ const char* HswMapFontUtf8(const char* winName)
     }
     if (has("行楷") || has("Xingkai") || has("KaiTi") || has("楷体") ||
         has("STKaiti") || has("WenKai") || has("霞鹜")) {
-        out = g_kaitiName.empty() ? std::string("STKaiti") : g_kaitiName;
+        out = g_kaitiName.empty() ? std::string("Songti SC") : g_kaitiName;
         return out.c_str();
     }
     if (has("Emoji") || has("emoji")) { out = "Apple Color Emoji"; return out.c_str(); }
     out = n;
     return out.c_str();
+}
+
+// macOS 的 CTFontCreateWithName 在字体不存在时会去问字体服务（离线机器上能卡死几十秒），
+// 所以先拿一份「系统装了哪些字体家族」的清单，按清单挑，挑不到就用苹方兜底。
+static CFArrayRef g_famNames = nullptr;
+
+static bool HswFamExists(const std::string& nm)
+{
+    if (!g_famNames) g_famNames = CTFontManagerCopyAvailableFontFamilyNames();
+    if (!g_famNames) return false;
+    NSString* want = [NSString stringWithUTF8String:nm.c_str()];
+    if (!want) return false;
+    CFIndex n = CFArrayGetCount(g_famNames);
+    for (CFIndex i = 0; i < n; ++i) {
+        NSString* s = (__bridge NSString*)CFArrayGetValueAtIndex(g_famNames, i);
+        if ([s caseInsensitiveCompare:want] == NSOrderedSame) return true;
+    }
+    return false;
+}
+
+static std::string HswPickFont(const std::vector<std::string>& cands, const char* dflt)
+{
+    for (size_t i = 0; i < cands.size(); ++i)
+        if (!cands[i].empty() && HswFamExists(cands[i])) return cands[i];
+    return std::string(dflt);
 }
 
 static void HswRegisterBundledFonts(void)
@@ -1334,6 +1367,14 @@ static void HswRegisterBundledFonts(void)
         }
         if (err) CFRelease(err);
     }
+    if (!g_kaitiName.empty() && !HswFamExists(g_kaitiName)) g_kaitiName.clear();
+    if (!g_heiName.empty() && !HswFamExists(g_heiName)) g_heiName.clear();
+    g_kaitiName = HswPickFont({ g_kaitiName, "LXGW WenKai", "Kaiti SC", "STKaiti",
+                                "Songti SC", "STSong", "PingFang SC" }, "PingFang SC");
+    g_heiName   = HswPickFont({ g_heiName, "PingFang SC", "Hiragino Sans GB",
+                                "Heiti SC", "Helvetica" }, "Helvetica");
+    fprintf(stderr, "[shim] fonts: kaiti=%s hei=%s\n", g_kaitiName.c_str(), g_heiName.c_str());
+    fflush(stderr);
 }
 
 // ---- 内部结构体 ----
@@ -1622,16 +1663,8 @@ BOOL FontFamily::IsAvailable() const
 {
     ShimFam* f = (ShimFam*)impl;
     if (!f) return FALSE;
-    DBG("IsAvailable [%s]", f->name.c_str());
-    NSString* nm = [NSString stringWithUTF8String:f->name.c_str()];
-    CTFontRef t = CTFontCreateWithName((CFStringRef)nm, 12.0, nullptr);
-    DBG("  CTFontCreateWithName -> %p", t);
-    bool ok = false;
-    if (t) {
-        CFStringRef fn = CTFontCopyFamilyName(t);
-        if (fn) { CFRelease(fn); ok = true; }
-        CFRelease(t);
-    }
+    bool ok = HswFamExists(f->name);
+    DBG("IsAvailable [%s] -> %d", f->name.c_str(), ok ? 1 : 0);
     return ok ? TRUE : FALSE;
 }
 Status FontFamily::GetFamilyName(wchar_t* buf, int n) const
@@ -1653,10 +1686,9 @@ struct ShimFont {
 
 static CTFontRef MakeCTFont(const std::string& fam, REAL size, int style)
 {
-    NSString* nm = [NSString stringWithUTF8String:fam.c_str()];
+    std::string pick = HswPickFont({ fam, "PingFang SC", "Helvetica" }, "Helvetica");
+    NSString* nm = [NSString stringWithUTF8String:pick.c_str()];
     CTFontRef base = CTFontCreateWithName((CFStringRef)nm, (CGFloat)size, nullptr);
-    if (!base) base = CTFontCreateWithName(CFSTR("PingFang SC"), (CGFloat)size, nullptr);
-    if (!base) base = CTFontCreateWithName(CFSTR("Helvetica"), (CGFloat)size, nullptr);
     if (!base) return nullptr;
     CTFontSymbolicTraits tr = 0;
     if (style & FontStyleBold) tr |= kCTFontBoldTrait;
