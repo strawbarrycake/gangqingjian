@@ -1,0 +1,61 @@
+name: 构建 macOS 版《高中的一周》
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'mac_aweek/**'
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 编译并打包 .app
+        id: pack
+        run: |
+          set -e
+          chmod +x mac_aweek/build_mac.sh
+          cd mac_aweek
+          ./build_mac.sh
+
+      - name: 离屏截图自检（把渲染结果导成 PNG，人工校对用）
+        continue-on-error: true
+        run: |
+          cd mac_aweek
+          mkdir -p shots
+          timeout 60 "./高中的一周.app/Contents/MacOS/AWeek" \
+              --shot shots/pv --shot-at 20,120,260,400 --shot-quit || true
+          ls -la shots || true
+
+      - name: 上传截图
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 截图自检
+          path: mac_aweek/shots
+
+      - name: 上传 zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: 高中的一周-macOS
+          path: mac_aweek/高中的一周-macOS.zip
+
+      - name: 发布 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: aweek-mac
+          name: 高中的一周 macOS 版
+          body: |
+            macOS 版《高中的一周》。
+            下载 `高中的一周-macOS.zip`，解压得到 `高中的一周.app`。
+
+            **首次打开**：右键点 `高中的一周.app` → 选「打开」→ 再点「打开」。
+            （未签名的 app 会被 Gatekeeper 拦一次，只用右键打开这一次，之后双击就能直接进。）
+
+            支持 Intel 和 Apple 芯片（通用二进制），最低 macOS 11。
+          files: mac_aweek/高中的一周-macOS.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

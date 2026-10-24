@@ -309,8 +309,8 @@ public:
     void* impl;
     Image() : impl(nullptr) {}
     virtual ~Image() {}
-    unsigned int GetWidth() const;
-    unsigned int GetHeight() const;
+    virtual unsigned int GetWidth() const;
+    virtual unsigned int GetHeight() const;
 };
 
 class Bitmap : public Image {
