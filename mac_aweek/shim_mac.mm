@@ -1318,7 +1318,9 @@ struct ShimPath {
 
 struct ShimGfx {
     CGContextRef ctx = nullptr;
-    ShimBuf* buf = nullptr;
+    void* buf = nullptr;       // ShimImg*（Bitmap）或 ShimBuf*（DIB）
+    bool  bufIsImg = false;
+    int   bw = 0, bh = 0;      // 目标尺寸（ResetTransform / Clear 用）
     int depth = 0;
 };
 
@@ -1335,7 +1337,9 @@ struct ShimImg {
 // 画完之后打脏标记（否则缓存的 CGImage 不会更新）
 static void HswTouch(ShimGfx* g)
 {
-    if (g && g->buf) g->buf->dirty = true;
+    if (!g || !g->buf) return;
+    if (g->bufIsImg) ((ShimImg*)g->buf)->dirty = true;
+    else             ((ShimBuf*)g->buf)->dirty = true;
 }
 
 struct ShimGrad {
@@ -2047,6 +2051,15 @@ Status GraphicsPath::GetBounds(RectF* r) const
 Status GraphicsPath::SetFillMode(FillMode m) { ShimPath* s = (ShimPath*)impl; if (s) s->mode = m; return Ok; }
 int GraphicsPath::GetPointCount() const { return 0; }
 
+// CoreGraphics 没有 CGContextSetCTM，用 先乘逆矩阵再乘目标矩阵 来模拟
+static void HswSetCTM(CGContextRef c, CGAffineTransform t)
+{
+    if (!c) return;
+    CGAffineTransform cur = CGContextGetCTM(c);
+    CGContextConcatCTM(c, CGAffineTransformInvert(cur));
+    CGContextConcatCTM(c, t);
+}
+
 // ---- Graphics ----
 static void HswGfxInit(ShimGfx* g, void* src)
 {
@@ -2055,18 +2068,25 @@ static void HswGfxInit(ShimGfx* g, void* src)
     if (magic == HSW_MAGIC_DC) {
         ShimDC* dc = (ShimDC*)src;
         g->buf = dc->bmp;
+        g->bufIsImg = false;
         g->ctx = dc->bmp ? dc->bmp->ctx : dc->ctx;
+        if (dc->bmp) { g->bw = dc->bmp->w; g->bh = dc->bmp->h; }
+        else { g->bw = g_backW; g->bh = g_backH; }
     } else if (magic == HSW_MAGIC_IMG) {
         ShimImg* im = (ShimImg*)src;
         g->buf = im;
+        g->bufIsImg = true;
         g->ctx = ImgCtx(im);
+        g->bw = im->w; g->bh = im->h;
     } else {
-        // 兜底：当成位图
         ShimImg* im = (ShimImg*)src;
         g->buf = im;
+        g->bufIsImg = true;
         g->ctx = im ? im->ctx : nullptr;
+        g->bw = im ? im->w : g_backW;
+        g->bh = im ? im->h : g_backH;
     }
-    if (!g->ctx) g->ctx = g_backCtx;
+    if (!g->ctx) { g->ctx = g_backCtx; g->bw = g_backW; g->bh = g_backH; }
 }
 
 Graphics::Graphics(void* image)
@@ -2086,8 +2106,8 @@ Status Graphics::Clear(const Color& c)
 {
     ShimGfx* g = (ShimGfx*)impl;
     if (!g || !g->ctx) return InvalidParameter;
-    CGFloat w = g->buf ? (CGFloat)g->buf->w : (CGFloat)g_backW;
-    CGFloat h = g->buf ? (CGFloat)g->buf->h : (CGFloat)g_backH;
+    CGFloat w = (CGFloat)(g->bw ? g->bw : g_backW);
+    CGFloat h = (CGFloat)(g->bh ? g->bh : g_backH);
     CGContextSaveGState(g->ctx);
     CGContextSetBlendMode(g->ctx, kCGBlendModeCopy);
     CGContextSetFillColorWithColor(g->ctx,
@@ -2161,7 +2181,7 @@ Status Graphics::FillPath(const Brush* b, const GraphicsPath* p)
     } else {
         if (!HswFillGrad(g->ctx, b, sp->p, sp->mode)) return GenericError;
     }
-    if (g->buf) HswBufDirty(g->buf);
+    HswTouch(g);
     HswTouch(g);
     return Ok;
 }
@@ -2627,7 +2647,7 @@ Status Graphics::MultiplyTransform(const Matrix* m, MatrixOrder order)
     if (!g || !g->ctx || !m) return InvalidParameter;
     CGAffineTransform t = ((ShimMat*)m->impl)->m;
     if (order == MatrixOrderAppend) CGContextConcatCTM(g->ctx, t);
-    else { CGAffineTransform cur = CGContextGetCTM(g->ctx); CGContextSetCTM(g->ctx, CGAffineTransformConcat(t, cur)); }
+    else HswSetCTM(g->ctx, CGAffineTransformConcat(t, CGContextGetCTM(g->ctx)));
     HswTouch(g);
     return Ok;
 }
@@ -2635,7 +2655,7 @@ Status Graphics::SetTransform(const Matrix* m)
 {
     ShimGfx* g = (ShimGfx*)impl;
     if (!g || !g->ctx || !m) return InvalidParameter;
-    CGContextSetCTM(g->ctx, ((ShimMat*)m->impl)->m);
+    HswSetCTM(g->ctx, ((ShimMat*)m->impl)->m);
     HswTouch(g);
     return Ok;
 }
@@ -2652,8 +2672,8 @@ Status Graphics::ResetTransform()
     ShimGfx* g = (ShimGfx*)impl;
     if (!g || !g->ctx) return InvalidParameter;
     // 恢复成「y 向下」的初始状态
-    CGSize sz = CGSizeMake(g->buf ? g->buf->w : g_backW, g->buf ? g->buf->h : g_backH);
-    CGContextSetCTM(g->ctx, CGAffineTransformIdentity);
+    CGSize sz = CGSizeMake(g->bw ? g->bw : g_backW, g->bh ? g->bh : g_backH);
+    HswSetCTM(g->ctx, CGAffineTransformIdentity);
     CGContextTranslateCTM(g->ctx, 0, sz.height);
     CGContextScaleCTM(g->ctx, 1, -1);
     HswTouch(g);
