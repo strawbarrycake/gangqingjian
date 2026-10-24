@@ -949,6 +949,7 @@ static void HswInitDirs(void)
 DWORD GetModuleFileNameW(HMODULE mod, wchar_t* buf, DWORD cap)
 {
     (void)mod;
+    DBG("GetModuleFileNameW");
     HswInitDirs();
     std::wstring p = U2W(g_resDir + "/高中的一周");
     if (buf && cap > 0) {
@@ -975,6 +976,7 @@ HRESULT SHGetFolderPathW(HWND hwnd, int csidl, HANDLE token, DWORD flags, wchar_
 
 FILE* _wfopen(const wchar_t* path, const wchar_t* mode)
 {
+    DBG("_wfopen %s", mode ? W2U(mode).c_str() : "?");
     if (!path) return nullptr;
     std::string p = W2U(path);
     std::string m = mode ? W2U(mode) : "rb";
@@ -1003,6 +1005,7 @@ int _wcsicmp(const wchar_t* a, const wchar_t* b)
 BOOL CreateDirectoryW(const wchar_t* path, void* sa)
 {
     (void)sa;
+    DBG("CreateDirectoryW");
     if (!path) return FALSE;
     std::string p = W2U(path);
     mkdir(p.c_str(), 0755);
@@ -1018,6 +1021,7 @@ int SHCreateDirectoryExW(HWND hwnd, const wchar_t* path, void* sec)
 
 DWORD GetFileAttributesW(const wchar_t* path)
 {
+    DBG("GetFileAttributesW");
     if (!path) return 0xFFFFFFFFu;
     struct stat st;
     if (stat(W2U(path).c_str(), &st) != 0) return 0xFFFFFFFFu;
@@ -1029,6 +1033,7 @@ BOOL SetFileAttributesW(const wchar_t* path, DWORD attr)
 
 BOOL CopyFileW(const wchar_t* src, const wchar_t* dst, BOOL failIfExists)
 {
+    DBG("CopyFileW");
     if (!src || !dst) return FALSE;
     std::string s = W2U(src), d = W2U(dst);
     if (failIfExists) { struct stat st; if (stat(d.c_str(), &st) == 0) return FALSE; }
@@ -1051,6 +1056,7 @@ BOOL DeleteFileW(const wchar_t* path)
 
 BOOL PathFileExistsW(const wchar_t* path)
 {
+    DBG("PathFileExistsW");
     if (!path) return FALSE;
     struct stat st;
     return stat(W2U(path).c_str(), &st) == 0 ? TRUE : FALSE;
@@ -1066,6 +1072,7 @@ struct ShimFind {
 
 HANDLE FindFirstFileW(const wchar_t* pattern, WIN32_FIND_DATAW* fd)
 {
+    DBG("FindFirstFileW");
     if (!pattern || !fd) return INVALID_HANDLE_VALUE;
     std::string p = W2U(pattern);
     size_t slash = p.find_last_of('/');
@@ -1176,6 +1183,7 @@ static void HswAudEnsure(void)
 
 bool HswAudLoadFile(const wchar_t* path, double maxSec)
 {
+    DBG("HswAudLoadFile");
     (void)maxSec;
     HswAudEnsure();
     g_audioDur = 0.0;
