@@ -375,7 +375,12 @@ static ShimBuf* HswBufCreate(int w, int h)
 static CGImageRef HswBufImage(ShimBuf* b)
 {
     if (!b) return nullptr;
-    if (!b->img) b->img = CGBitmapContextCreateImage(b->ctx);
+    // 注意：这里必须看 dirty，否则第一帧的空白图会被一直缓存（画面全黑）
+    if (!b->img || b->dirty) {
+        if (b->img) { CGImageRelease(b->img); b->img = nullptr; }
+        b->img = CGBitmapContextCreateImage(b->ctx);
+        b->dirty = false;
+    }
     return b->img;
 }
 
