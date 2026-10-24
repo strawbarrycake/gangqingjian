@@ -83,6 +83,12 @@ typedef unsigned long long DWORD_PTR;
 #define S_FALSE  1L
 #define E_FAIL   0x80004005L
 
+// BOOL：Objective-C 编译时用系统自带的（signed char / bool），
+// 纯 C++ 编译（游戏主体 高中的一周.cpp）时自己给一个 int 版本。
+#if !defined(__OBJC__)
+typedef int BOOL;
+#endif
+
 // ---------------- 结构体 ----------------
 struct RECT  { LONG left, top, right, bottom; };
 struct POINT { LONG x, y; };

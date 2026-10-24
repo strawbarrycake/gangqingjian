@@ -19,6 +19,11 @@
 #include <cwchar>
 
 typedef float REAL;
+
+// 见 winshim.h 里的说明
+#if !defined(__OBJC__)
+typedef int BOOL;
+#endif
 typedef unsigned int UINT32;
 typedef unsigned long long UINT64;
 class GraphicsPath;
