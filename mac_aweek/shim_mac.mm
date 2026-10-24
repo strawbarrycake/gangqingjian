@@ -81,6 +81,10 @@ static int g_clientW = 1280, g_clientH = 720;
 - (BOOL)isOpaque { return YES; }
 - (BOOL)acceptsFirstResponder { return YES; }
 
+// 临时诊断日志（CI 上定位卡点用）
+static int g_dbgN = 0;
+#define DBG(...) do { if (g_dbgN < 400) { fprintf(stderr, "[shim] " __VA_ARGS__); fputc('\n', stderr); fflush(stderr); } } while(0)
+
 // Cocoa 原点在左下，翻成 GDI 的 y 向下
 static int HswFlipY(CGFloat yInView)
 {
@@ -479,6 +483,7 @@ HWND CreateWindowExW(DWORD exStyle, const wchar_t* cls, const wchar_t* title,
     }
     g_delegate.win = g_window;
     g_delegate.view = g_view;
+    DBG("CreateWindow %dx%d", w, h);
     return g_mainWnd;
 }
 
@@ -487,6 +492,7 @@ BOOL ShowWindow(HWND hwnd, int cmd)
     (void)hwnd;
     if (!g_window) return FALSE;
     if (cmd == SW_HIDE) { [g_window orderOut:nil]; return TRUE; }
+    DBG("ShowWindow cmd=%d", cmd);
     [g_window makeKeyAndOrderFront:nil];
     [g_app activateIgnoringOtherApps:YES];
     if (cmd == SW_MAXIMIZE) [g_window zoom:nil];
@@ -633,7 +639,9 @@ BOOL TranslateMessage(const MSG* msg) { (void)msg; return TRUE; }
 
 LRESULT DispatchMessageW(const MSG* msg)
 {
+    static int dbgMsg = 0;
     if (!msg || !g_wndProc) return 0;
+    if (dbgMsg < 40) { fprintf(stderr, "[shim] dispatch msg=0x%X\n", msg->message); fflush(stderr); ++dbgMsg; }
     return g_wndProc(msg->hwnd, msg->message, msg->wParam, msg->lParam);
 }
 
@@ -656,6 +664,8 @@ HDC BeginPaint(HWND hwnd, PAINTSTRUCT* ps)
     dc->ctx = g_backCtx;
     dc->w = g_backW; dc->h = g_backH;
     if (ps) ps->hdc = dc;
+    ++g_dbgN;
+    if (g_dbgN < 400 || g_dbgN % 120 == 0) DBG("BeginPaint #%d %dx%d", g_dbgN, g_backW, g_backH);
     return dc;
 }
 
@@ -808,6 +818,7 @@ BOOL StretchBlt(HDC dst, int dx, int dy, int dw, int dh,
 UINT_PTR SetTimer(HWND hwnd, UINT_PTR id, UINT ms, void* proc)
 {
     (void)hwnd; (void)proc;
+    DBG("SetTimer id=%llu ms=%u", (unsigned long long)id, (unsigned)ms);
     for (size_t i = 0; i < g_timers.size(); ++i)
         if (g_timers[i].id == id) { g_timers[i].ms = ms; g_timers[i].next = HswNowSec() * 1000.0 + ms; return id; }
     ShimTimer t; t.id = id; t.ms = ms ? ms : 16; t.next = HswNowSec() * 1000.0 + t.ms;

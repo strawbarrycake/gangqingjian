@@ -33,7 +33,7 @@ jobs:
                 --shot shots/pv --shot-at 20,120,260,400 --shot-quit \
                 > shots/app.log 2>&1 ; echo "exit=$?" >> shots/app.log ) &
           PID=$!
-          for i in $(seq 1 90); do kill -0 $PID 2>/dev/null || break; sleep 1; done
+          for i in $(seq 1 45); do kill -0 $PID 2>/dev/null || break; sleep 1; done
           kill -9 $PID 2>/dev/null || true
           echo "---- app.log ----"
           cat shots/app.log 2>/dev/null || echo "(没有日志)"
