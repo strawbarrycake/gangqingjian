@@ -1,5 +1,8 @@
 name: 构建 macOS 版《高中的一周》
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
   push:
