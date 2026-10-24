@@ -30,8 +30,13 @@ jobs:
           cd mac_aweek
           mkdir -p shots
           ( "./高中的一周.app/Contents/MacOS/AWeek" \
-                --shot shots/pv --shot-at 150,320,520,760,1000 \
-                --click 200,1030,196 --shot-quit \
+                --shot shots/pv --shot-at 150,320,700,900,1200,1600 \
+                --click 200,1030,196 \
+                --click 400,410,310 \
+                --click 480,1140,590 --click 520,1140,590 \
+                --click 560,1140,590 --click 600,1140,590 \
+                --click 640,1140,590 --click 680,1140,590 \
+                --shot-quit \
                 > shots/app.log 2>&1 ; echo "exit=$?" >> shots/app.log ) &
           PID=$!
           for i in $(seq 1 45); do kill -0 $PID 2>/dev/null || break; sleep 1; done
