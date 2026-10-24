@@ -83,7 +83,7 @@ static int g_clientW = 1280, g_clientH = 720;
 
 // 临时诊断日志（CI 上定位卡点用）
 static int g_dbgN = 0;
-#define DBG(...) do { if (g_dbgN < 400) { fprintf(stderr, "[shim] " __VA_ARGS__); fputc('\n', stderr); fflush(stderr); } } while(0)
+#define DBG(...) do { if (g_dbgN < 3000) { fprintf(stderr, "[shim] " __VA_ARGS__); fputc('\n', stderr); fflush(stderr); } } while(0)
 
 // Cocoa 原点在左下，翻成 GDI 的 y 向下
 static int HswFlipY(CGFloat yInView)
@@ -981,7 +981,10 @@ FILE* _wfopen(const wchar_t* path, const wchar_t* mode)
     std::string p = W2U(path);
     std::string m = mode ? W2U(mode) : "rb";
     if (m.find('b') == std::string::npos) m += "b";
-    return fopen(p.c_str(), m.c_str());
+    DBG("  open [%s] mode=%s", p.c_str(), m.c_str());
+    FILE* fp = fopen(p.c_str(), m.c_str());
+    DBG("  -> %s", fp ? "ok" : "null");
+    return fp;
 }
 
 int _fseeki64(FILE* f, long long off, int whence) { return fseeko(f, (off_t)off, whence); }
@@ -1612,14 +1615,17 @@ FontFamily::FontFamily(const wchar_t* nm)
     name = nm ? nm : L"PingFang SC";
     const char* mapped = HswMapFontUtf8(W2U(name).c_str());
     ((ShimFam*)impl)->name = mapped ? mapped : "PingFang SC";
+    DBG("FontFamily ctor -> %s", ((ShimFam*)impl)->name.c_str());
 }
 FontFamily::~FontFamily() { delete (ShimFam*)impl; impl = nullptr; }
 BOOL FontFamily::IsAvailable() const
 {
     ShimFam* f = (ShimFam*)impl;
     if (!f) return FALSE;
+    DBG("IsAvailable [%s]", f->name.c_str());
     NSString* nm = [NSString stringWithUTF8String:f->name.c_str()];
     CTFontRef t = CTFontCreateWithName((CFStringRef)nm, 12.0, nullptr);
+    DBG("  CTFontCreateWithName -> %p", t);
     bool ok = false;
     if (t) {
         CFStringRef fn = CTFontCopyFamilyName(t);
