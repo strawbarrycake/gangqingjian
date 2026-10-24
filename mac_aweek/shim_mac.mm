@@ -2177,6 +2177,18 @@ static void HswGfxInit(ShimGfx* g, void* src)
         g->bh = im ? im->h : 0;
     }
     if (!g->ctx) { g->ctx = g_backCtx; g->bw = g_backW; g->bh = g_backH; }
+
+    // 关键：CGContext 是所有 Graphics 共用的，变换会一直累积下去
+    //（表现：画面每帧往下漂，几十帧后整块跑出画布 → 全黑）。
+    // GDI+ 的 Graphics 每次都是单位矩阵，这里必须显式复位。
+    CGFloat baseH = (CGFloat)(g->bh ? g->bh : g_backH);
+    HswSetCTM(g->ctx, CGAffineTransformIdentity);
+    CGContextTranslateCTM(g->ctx, 0, baseH);
+    CGContextScaleCTM(g->ctx, 1, -1);
+    CGContextResetClip(g->ctx);
+    CGContextSetAlpha(g->ctx, 1.0);
+    CGContextSetBlendMode(g->ctx, kCGBlendModeNormal);
+    g->depth = 0;
 }
 
 Graphics::Graphics(void* image)
