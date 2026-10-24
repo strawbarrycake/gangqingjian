@@ -29,6 +29,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <unordered_set>
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -320,6 +321,10 @@ void HswPostKey(unsigned int msg, NSEvent* ev)
 }
 
 // ---------------- 位图 / HDC ----------------
+// Graphics(void*) 可能收到 Bitmap*（gshim 的类）也可能收到 HDC（我们的 ShimDC*），
+// 两者都是 void*，靠一张「活着的 DC 表」区分，比猜内存布局可靠。
+static std::unordered_set<void*> g_dcSet;
+
 // magic 用来区分 Graphics(void*) 收到的是 Bitmap 还是 HDC
 #define HSW_MAGIC_IMG 0x484D4931u   // "HMI1"
 #define HSW_MAGIC_DC  0x484D4431u   // "HMD1"
@@ -674,6 +679,7 @@ HDC BeginPaint(HWND hwnd, PAINTSTRUCT* ps)
     dc->isWindow = true;
     dc->ctx = g_backCtx;
     dc->w = g_backW; dc->h = g_backH;
+    g_dcSet.insert((void*)dc);
     if (ps) ps->hdc = dc;
     ++g_dbgN;
     if (g_dbgN < 400 || g_dbgN % 120 == 0) DBG("BeginPaint #%d %dx%d", g_dbgN, g_backW, g_backH);
@@ -683,7 +689,7 @@ HDC BeginPaint(HWND hwnd, PAINTSTRUCT* ps)
 BOOL EndPaint(HWND hwnd, const PAINTSTRUCT* ps)
 {
     (void)hwnd;
-    if (ps && ps->hdc) delete (ShimDC*)ps->hdc;
+    if (ps && ps->hdc) { g_dcSet.erase((void*)ps->hdc); delete (ShimDC*)ps->hdc; }
     HswPresentBackbuffer();
     return TRUE;
 }
@@ -694,12 +700,14 @@ HDC GetDC(HWND hwnd)
     if (g_clientW != g_backW || g_clientH != g_backH) HswBackResize(g_clientW, g_clientH);
     ShimDC* dc = new ShimDC();
     dc->isWindow = true; dc->ctx = g_backCtx; dc->w = g_backW; dc->h = g_backH;
+    g_dcSet.insert((void*)dc);
     return dc;
 }
 
 int ReleaseDC(HWND hwnd, HDC hdc)
 {
     (void)hwnd;
+    g_dcSet.erase((void*)hdc);
     delete (ShimDC*)hdc;
     HswPresentBackbuffer();
     return 1;
@@ -717,10 +725,11 @@ HDC CreateCompatibleDC(HDC hdc)
     (void)hdc;
     ShimDC* dc = new ShimDC();
     dc->isWindow = false;
+    g_dcSet.insert((void*)dc);
     return dc;
 }
 
-BOOL DeleteDC(HDC hdc) { delete (ShimDC*)hdc; return TRUE; }
+BOOL DeleteDC(HDC hdc) { g_dcSet.erase((void*)hdc); delete (ShimDC*)hdc; return TRUE; }
 
 HBITMAP CreateCompatibleBitmap(HDC hdc, int w, int h)
 {
@@ -1794,7 +1803,8 @@ Bitmap::Bitmap(int width, int height) : Bitmap(width, height, PixelFormat32bppAR
 static ShimImg* HswLoadImageFile(const wchar_t* file)
 {
     if (!file) return nullptr;
-    std::string p = W2U(file);
+    std::string p = HswPath(file);
+    DBG("LoadImage [%s]", p.c_str());
     NSString* np = [NSString stringWithUTF8String:p.c_str()];
     NSURL* u = [NSURL fileURLWithPath:np];
     CGImageSourceRef src = CGImageSourceCreateWithURL((__bridge CFURLRef)u, nullptr);
@@ -1815,11 +1825,12 @@ static ShimImg* HswLoadImageFile(const wchar_t* file)
     }
     CGImageRef cg = CGImageSourceCreateImageAtIndex(src, 0, nullptr);
     CFRelease(src);
-    if (!cg) return nullptr;
+    if (!cg) { DBG("  -> 解不出图"); return nullptr; }
     ShimImg* im = new ShimImg();
     im->cg = cg;
     im->w = (int)CGImageGetWidth(cg);
     im->h = (int)CGImageGetHeight(cg);
+    DBG("  -> %dx%d", im->w, im->h);
     return im;
 }
 
@@ -2125,27 +2136,22 @@ static void HswSetCTM(CGContextRef c, CGAffineTransform t)
 static void HswGfxInit(ShimGfx* g, void* src)
 {
     if (!g || !src) return;
-    unsigned int magic = *(unsigned int*)src;
-    if (magic == HSW_MAGIC_DC) {
+    if (g_dcSet.count(src)) {
         ShimDC* dc = (ShimDC*)src;
         g->buf = dc->bmp;
         g->bufIsImg = false;
         g->ctx = dc->bmp ? dc->bmp->ctx : dc->ctx;
         if (dc->bmp) { g->bw = dc->bmp->w; g->bh = dc->bmp->h; }
         else { g->bw = g_backW; g->bh = g_backH; }
-    } else if (magic == HSW_MAGIC_IMG) {
-        ShimImg* im = (ShimImg*)src;
-        g->buf = im;
-        g->bufIsImg = true;
-        g->ctx = ImgCtx(im);
-        g->bw = im->w; g->bh = im->h;
     } else {
-        ShimImg* im = (ShimImg*)src;
+        // 这个指针是 gshim 的 Bitmap / Image 对象，真正的内部结构在 impl 里
+        Image* img = (Image*)src;
+        ShimImg* im = (ShimImg*)img->impl;
         g->buf = im;
         g->bufIsImg = true;
-        g->ctx = im ? im->ctx : nullptr;
-        g->bw = im ? im->w : g_backW;
-        g->bh = im ? im->h : g_backH;
+        g->ctx = im ? ImgCtx(im) : nullptr;
+        g->bw = im ? im->w : 0;
+        g->bh = im ? im->h : 0;
     }
     if (!g->ctx) { g->ctx = g_backCtx; g->bw = g_backW; g->bh = g_backH; }
 }
