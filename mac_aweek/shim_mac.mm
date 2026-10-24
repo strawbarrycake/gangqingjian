@@ -2729,7 +2729,8 @@ Status GetImageEncoders(unsigned int num, unsigned int size, ImageCodecInfo* inf
 // ==========================================================================
 //  第 5 部分：入口 main() → WinMain()
 // ==========================================================================
-extern "C" int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR cmd, int show);
+// 注意：不能用 extern "C" —— 游戏里的 WinMain 是 C++ 链接，加了就成了 _WinMain 找不到
+int WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR cmd, int show);
 
 int main(int argc, char** argv)
 {
