@@ -235,7 +235,7 @@ static double HswNowSec(void)
 DWORD GetTickCount(void) { return (DWORD)(HswNowSec() * 1000.0); }
 ULONGLONG GetTickCount64(void) { return (ULONGLONG)(HswNowSec() * 1000.0); }
 void Sleep(DWORD ms) { usleep((useconds_t)ms * 1000); }
-BOOL SetProcessDPIAware(void) { return TRUE; }
+BOOL SetProcessDPIAware(void) { DBG("SetProcessDPIAware"); return TRUE; }
 DWORD GetLastError(void) { return 0; }
 
 BOOL QueryPerformanceCounter(LARGE_INTEGER* v)
@@ -448,12 +448,15 @@ HWND CreateWindowExW(DWORD exStyle, const wchar_t* cls, const wchar_t* title,
                      HWND parent, HMENU menu, HINSTANCE inst, void* param)
 {
     (void)exStyle; (void)cls; (void)style; (void)parent; (void)menu; (void)inst; (void)param;
+    DBG("CreateWindowExW in %dx%d", w, h);
     if (!g_inited) {
+        DBG("NSApplication sharedApplication ...");
         g_app = [NSApplication sharedApplication];
         g_delegate = [[HswDelegate alloc] init];
         [g_app setDelegate:(id<NSApplicationDelegate>)g_delegate];
         [g_app setActivationPolicy:NSApplicationActivationPolicyRegular];
         [g_app finishLaunching];
+        DBG("NSApplication ready");
     }
     g_inited = true;
 
@@ -960,6 +963,7 @@ DWORD GetModuleFileNameW(HMODULE mod, wchar_t* buf, DWORD cap)
 HRESULT SHGetFolderPathW(HWND hwnd, int csidl, HANDLE token, DWORD flags, wchar_t* path)
 {
     (void)hwnd; (void)csidl; (void)token; (void)flags;
+    DBG("SHGetFolderPathW");
     HswInitDirs();
     std::wstring p = U2W(g_appData);
     if (path) {
@@ -2725,9 +2729,14 @@ void  Graphics::ReleaseHDC(void* hdc) { (void)hdc; }
 Status GdiplusStartup(unsigned long long* token, const GdiplusStartupInput* in, GdiplusStartupOutput* out)
 {
     (void)in; (void)out;
+    DBG("GdiplusStartup in");
     if (token) *token = 1;
     if (!g_cs) g_cs = CGColorSpaceCreateDeviceRGB();
+    DBG("colorspace ok");
+    HswInitDirs();
+    DBG("dirs ok res=%s", g_resDir.c_str());
     HswRegisterBundledFonts();
+    DBG("GdiplusStartup out");
     return Ok;
 }
 void GdiplusShutdown(unsigned long long token) { (void)token; }
