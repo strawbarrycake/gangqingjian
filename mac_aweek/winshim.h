@@ -418,7 +418,7 @@ DWORD   HswSizeofResource(HMODULE mod, HRSRC res);
 
 // Media Foundation：macOS 不需要，做成空实现，游戏里的 MFStartup 照call不误
 #define MF_VERSION 0x00020070
-long HswMFStartup(unsigned long version, unsigned long flags);
+long HswMFStartup(unsigned long version, unsigned long flags = 0);
 long HswMFShutdown(void);
 #define MFStartup  HswMFStartup
 #define MFShutdown HswMFShutdown
@@ -472,6 +472,16 @@ typedef long long (*FARPROC_T)(void);
 HMODULE LoadLibraryW(const wchar_t* name);
 void*   GetProcAddress(HMODULE mod, const char* name);
 BOOL    FreeLibrary(HMODULE mod);
+
+// MSVC 专用函数名 → POSIX 对应物
+#define _snprintf   snprintf
+#define _snwprintf  swprintf
+#define _stricmp    strcasecmp
+#define _strnicmp   strncasecmp
+#define _strdup     strdup
+#define _wtoi(p)    ((int)wcstol((p), nullptr, 10))
+#define _wtof(p)    ((double)wcstod((p), nullptr))
+#define _itow(i,b,n) swprintf((b), (n), L"%d", (i))
 
 void  HswFatal(const char* msg);
 
