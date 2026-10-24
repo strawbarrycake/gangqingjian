@@ -29,9 +29,16 @@ jobs:
         run: |
           cd mac_aweek
           mkdir -p shots
-          timeout 60 "./高中的一周.app/Contents/MacOS/AWeek" \
-              --shot shots/pv --shot-at 20,120,260,400 --shot-quit || true
-          ls -la shots || true
+          ( "./高中的一周.app/Contents/MacOS/AWeek" \
+                --shot shots/pv --shot-at 20,120,260,400 --shot-quit \
+                > shots/app.log 2>&1 ; echo "exit=$?" >> shots/app.log ) &
+          PID=$!
+          for i in $(seq 1 90); do kill -0 $PID 2>/dev/null || break; sleep 1; done
+          kill -9 $PID 2>/dev/null || true
+          echo "---- app.log ----"
+          cat shots/app.log 2>/dev/null || echo "(没有日志)"
+          echo "---- shots ----"
+          ls -la shots
 
       - name: 上传截图
         if: always()
