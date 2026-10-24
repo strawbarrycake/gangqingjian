@@ -58,10 +58,10 @@ echo "    架构：$(lipo -archs "$APP/Contents/MacOS/$EXE")"
 echo "    资源：$(du -sh "$APP/Contents/Resources" | cut -f1)"
 
 echo "==> 5/5 打成 zip ..."
-rm -f "高中的一周-macOS.zip"
-ditto -c -k --sequesterRsrc --keepParent "$APP" "高中的一周-macOS.zip"
+rm -f "HighSchoolWeek-macOS.zip"
+ditto -c -k --sequesterRsrc --keepParent "$APP" "HighSchoolWeek-macOS.zip"
 
 echo ""
 echo "完成！"
 echo "  双击运行：  $(pwd)/$APP"
-echo "  发给别人：  $(pwd)/高中的一周-macOS.zip"
+echo "  发给别人：  $(pwd)/HighSchoolWeek-macOS.zip"
