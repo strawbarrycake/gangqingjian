@@ -50,8 +50,8 @@ extern "C" {
 // ==========================================================================
 //  第 1 部分：Cocoa 窗口 / 视图
 // ==========================================================================
-// 键盘事件转发（定义在下面的 C++ 段里，这里先声明，免得 Objective-C 段找不到）
-void HswPostKey(unsigned int msg, NSEvent* ev);
+// 键盘事件转发（定义在下面的 extern "C" 段里，这里先声明，免得 Objective-C 段找不到）
+extern "C" void HswPostKey(unsigned int msg, NSEvent* ev);
 
 @interface HswView : NSView
 @end
@@ -1099,14 +1099,14 @@ BOOL FindNextFileW(HANDLE h, WIN32_FIND_DATAW* fd)
 BOOL FindClose(HANDLE h) { delete (ShimFind*)h; return TRUE; }
 
 // ---- 资源（macOS 没有内嵌资源）----
-HRSRC   FindResourceW(HMODULE mod, const wchar_t* name, const wchar_t* type)
+HRSRC   HswFindResource(HMODULE mod, const wchar_t* name, const wchar_t* type)
 { (void)mod; (void)name; (void)type; return nullptr; }
-HGLOBAL LoadResource(HMODULE mod, HRSRC res) { (void)mod; (void)res; return nullptr; }
-void*   LockResource(HGLOBAL g) { (void)g; return nullptr; }
-DWORD   SizeofResource(HMODULE mod, HRSRC res) { (void)mod; (void)res; return 0; }
+HGLOBAL HswLoadResource(HMODULE mod, HRSRC res) { (void)mod; (void)res; return nullptr; }
+void*   HswLockResource(HGLOBAL g) { (void)g; return nullptr; }
+DWORD   HswSizeofResource(HMODULE mod, HRSRC res) { (void)mod; (void)res; return 0; }
 
-long MFStartup(unsigned long version, unsigned long flags) { (void)version; (void)flags; return 0; }
-long MFShutdown(void) { return 0; }
+long HswMFStartup(unsigned long version, unsigned long flags) { (void)version; (void)flags; return 0; }
+long HswMFShutdown(void) { return 0; }
 
 HMODULE LoadLibraryW(const wchar_t* name) { (void)name; return nullptr; }
 void*   GetProcAddress(HMODULE mod, const char* name) { (void)mod; (void)name; return nullptr; }
@@ -1250,7 +1250,7 @@ BOOL PlaySoundW(const wchar_t* file, HMODULE mod, DWORD flags)
 static std::string g_kaitiName;   // 行楷（随包 or 系统）
 static std::string g_heiName;     // 黑体
 
-extern "C" const char* HswMapFontUtf8(const char* winName)
+const char* HswMapFontUtf8(const char* winName)
 {
     if (!winName) return nullptr;
     static std::string out;
@@ -1391,9 +1391,7 @@ static CGImageRef ImgCG(ShimImg* im)
     return im->cg;
 }
 
-// ---- Brush ----
-Brush::Brush() : impl(nullptr) {}
-Brush::~Brush() {}
+// ---- Brush ----（构造 / 析构已在 gshim.h 内联给出）
 
 // SolidBrush：impl 直接存 Color 的堆拷贝
 SolidBrush::SolidBrush() { impl = new Color(255, 255, 255, 255); col = Color(255, 255, 255, 255); }
@@ -1430,7 +1428,7 @@ LinearGradientBrush::LinearGradientBrush(const PointF& p0, const PointF& p1,
     s->c0 = c0; s->c1 = c1;
     s->g = MakeGrad(c0, c1); s->valid = true;
 }
-LinearGradientBrush::LinearGradientBrush(const Point& p0, const Point& p1,
+LinearGradientBrush::LinearGradientBrush(const HswPoint& p0, const HswPoint& p1,
                                          const Color& c0, const Color& c1)
 {
     impl = new ShimGrad();
@@ -1781,7 +1779,7 @@ Bitmap::~Bitmap()
 Bitmap* Bitmap::FromFile(const wchar_t* file) { return new Bitmap(file); }
 Status Bitmap::GetLastStatus() const { return lastStatus; }
 
-Status Bitmap::LockBits(const Rect* rc, unsigned int flags, PixelFormat format, BitmapData* data)
+Status Bitmap::LockBits(const HswRect* rc, unsigned int flags, PixelFormat format, BitmapData* data)
 {
     (void)flags; (void)format;
     ShimImg* im = (ShimImg*)impl;

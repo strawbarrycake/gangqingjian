@@ -43,7 +43,6 @@ typedef unsigned char  BYTE;
 typedef unsigned short WORD;
 typedef unsigned int   UINT;
 typedef unsigned long  DWORD;
-typedef int            BOOL;
 typedef int            INT;
 typedef long           LONG;
 typedef unsigned long  ULONG;
@@ -402,15 +401,21 @@ typedef void* HGLOBAL;
 #define MAKEINTRESOURCEW(i) ((const wchar_t*)(unsigned long long)(unsigned short)(i))
 #define MAKEINTRESOURCEA(i) ((const char*)(unsigned long long)(unsigned short)(i))
 #define RT_RCDATA ((const wchar_t*)10)
-HRSRC   FindResourceW(HMODULE mod, const wchar_t* name, const wchar_t* type);
-HGLOBAL LoadResource(HMODULE mod, HRSRC res);
-void*   LockResource(HGLOBAL g);
-DWORD   SizeofResource(HMODULE mod, HRSRC res);
+HRSRC   HswFindResource(HMODULE mod, const wchar_t* name, const wchar_t* type);
+HGLOBAL HswLoadResource(HMODULE mod, HRSRC res);
+void*   HswLockResource(HGLOBAL g);
+DWORD   HswSizeofResource(HMODULE mod, HRSRC res);
+#define FindResourceW  HswFindResource
+#define LoadResource   HswLoadResource
+#define LockResource   HswLockResource
+#define SizeofResource HswSizeofResource
 
 // Media Foundation：macOS 不需要，做成空实现，游戏里的 MFStartup 照call不误
 #define MF_VERSION 0x00020070
-long MFStartup(unsigned long version, unsigned long flags = 0);
-long MFShutdown(void);
+long HswMFStartup(unsigned long version, unsigned long flags);
+long HswMFShutdown(void);
+#define MFStartup  HswMFStartup
+#define MFShutdown HswMFShutdown
 
 double HswAudDur(void);          // 当前音频总时长（秒）
 

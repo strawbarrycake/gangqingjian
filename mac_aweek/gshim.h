@@ -19,7 +19,6 @@
 #include <cwchar>
 
 typedef float REAL;
-typedef int   BOOL;
 typedef unsigned int UINT32;
 typedef unsigned long long UINT64;
 class GraphicsPath;
@@ -134,10 +133,10 @@ struct Color {
         { return Color(a, r, g, b); }
 };
 
-struct Point {
+struct HswPoint {
     int X, Y;
-    Point() : X(0), Y(0) {}
-    Point(int x, int y) : X(x), Y(y) {}
+    HswPoint() : X(0), Y(0) {}
+    HswPoint(int x, int y) : X(x), Y(y) {}
 };
 struct PointF {
     REAL X, Y;
@@ -161,10 +160,10 @@ struct RectF {
     BOOL Contains(REAL x, REAL y) const
         { return x >= X && x < X + Width && y >= Y && y < Y + Height; }
 };
-struct Rect {
+struct HswRect {
     int X, Y, Width, Height;
-    Rect() : X(0), Y(0), Width(0), Height(0) {}
-    Rect(int x, int y, int w, int h) : X(x), Y(y), Width(w), Height(h) {}
+    HswRect() : X(0), Y(0), Width(0), Height(0) {}
+    HswRect(int x, int y, int w, int h) : X(x), Y(y), Width(w), Height(h) {}
     int GetLeft()   const { return X; }
     int GetTop()    const { return Y; }
     int GetRight()  const { return X + Width; }
@@ -206,7 +205,7 @@ class LinearGradientBrush : public Brush {
 public:
     LinearGradientBrush();
     LinearGradientBrush(const PointF& p0, const PointF& p1, const Color& c0, const Color& c1);
-    LinearGradientBrush(const Point& p0, const Point& p1, const Color& c0, const Color& c1);
+    LinearGradientBrush(const HswPoint& p0, const HswPoint& p1, const Color& c0, const Color& c1);
     LinearGradientBrush(const RectF& r, const Color& c0, const Color& c1, LinearGradientMode mode);
     LinearGradientBrush(const RectF& r, const Color& c0, const Color& c1, REAL angle, BOOL isAngleScalable);
     ~LinearGradientBrush();
@@ -325,7 +324,7 @@ public:
     ~Bitmap();
     static Bitmap* FromFile(const wchar_t* file);
     Status GetLastStatus() const;
-    Status LockBits(const Rect* rc, unsigned int flags, PixelFormat format, BitmapData* data);
+    Status LockBits(const HswRect* rc, unsigned int flags, PixelFormat format, BitmapData* data);
     Status UnlockBits(BitmapData* data);
     Bitmap* Clone(const RectF& rc, PixelFormat format);
     unsigned int GetWidth() const;
@@ -478,6 +477,11 @@ Status GetImageEncoders(unsigned int num, unsigned int size, ImageCodecInfo* inf
 
 // 字体名映射放在这里声明（Windows 字体名 → macOS / 随包字体），实现在 shim_mac.mm
 const char* HswMapFontUtf8(const char* winName);
+
+// Point / Rect 和 macOS 的 MacTypes 同名结构冲突，用宏别名绕开；
+// 这两个宏只在 HSW_MAC 下生效，CGRect / NSPoint 是独立 token，不受影响。
+#define Point HswPoint
+#define Rect  HswRect
 
 #endif // HSW_MAC
 #endif // HSW_GSHIM_H
